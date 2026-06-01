@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>VestStock — Controle de Estoque</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">VestStock</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard" onclick="navigate('dashboard',this)">
+        <span class="nav-icon">⬡</span><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="produtos" onclick="navigate('produtos',this)">
+        <span class="nav-icon">◫</span><span>Produtos</span>
+      </a>
+      <a href="#" class="nav-item" data-page="cadastro" onclick="navigate('cadastro',this)">
+        <span class="nav-icon">⊕</span><span>Cadastrar</span>
+      </a>
+      <a href="#" class="nav-item" data-page="scanner" onclick="navigate('scanner',this)">
+        <span class="nav-icon">⊞</span><span>Scanner</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="version-tag">v1.0</span>
+    </div>
+  </aside>
+
+  <!-- OVERLAY MOBILE -->
+  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <button class="menu-btn" onclick="toggleSidebar()">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div class="topbar-actions">
+        <button class="icon-btn scanner-quick" onclick="navigate('scanner', null)" title="Scanner">⊞</button>
+      </div>
+    </header>
+
+    <!-- PAGE: DASHBOARD -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1>Visão Geral</h1>
+        <p class="page-subtitle">Bem-vindo ao seu painel de estoque</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card accent-teal">
+          <div class="stat-label">Total de Peças</div>
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-icon">◈</div>
+        </div>
+        <div class="stat-card accent-violet">
+          <div class="stat-label">Modelos</div>
+          <div class="stat-value" id="stat-models">0</div>
+          <div class="stat-icon">◫</div>
+        </div>
+        <div class="stat-card accent-amber">
+          <div class="stat-label">Estoque Baixo</div>
+          <div class="stat-value" id="stat-low">0</div>
+          <div class="stat-icon">⚠</div>
+        </div>
+        <div class="stat-card accent-rose">
+          <div class="stat-label">Valor Total</div>
+          <div class="stat-value" id="stat-value">R$0</div>
+          <div class="stat-icon">◎</div>
+        </div>
+      </div>
+
+      <!-- BUSCA RÁPIDA -->
+      <div class="search-section">
+        <div class="search-wrapper">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="dashboard-search" placeholder="Buscar por nome ou código..." oninput="dashboardSearch(this.value)" autocomplete="off" />
+          <button class="search-clear" onclick="clearSearch()" id="search-clear-btn" style="display:none">✕</button>
+        </div>
+      </div>
+
+      <!-- RESULTADOS DA BUSCA -->
+      <div id="search-results" class="search-results" style="display:none"></div>
+
+      <!-- ALERTAS DE ESTOQUE BAIXO -->
+      <div class="section-block" id="low-stock-section">
+        <div class="section-title">
+          <span class="section-dot amber"></span>Estoque Baixo
+        </div>
+        <div id="low-stock-list" class="mini-list"></div>
+      </div>
+
+      <!-- ÚLTIMOS CADASTRADOS -->
+      <div class="section-block">
+        <div class="section-title">
+          <span class="section-dot teal"></span>Últimos Cadastrados
+        </div>
+        <div id="recent-list" class="mini-list"></div>
+      </div>
+    </section>
+
+    <!-- PAGE: PRODUTOS -->
+    <section class="page" id="page-produtos">
+      <div class="page-header">
+        <h1>Produtos</h1>
+        <button class="btn-primary" onclick="navigate('cadastro',null)">+ Novo</button>
+      </div>
+
+      <div class="filter-bar">
+        <div class="search-wrapper small">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="produtos-search" placeholder="Filtrar produtos..." oninput="filterProducts(this.value)" />
+        </div>
+        <select id="filter-size" onchange="filterProducts(document.getElementById('produtos-search').value)">
+          <option value="">Todos tamanhos</option>
+          <option>PP</option><option>P</option><option>M</option><option>G</option><option>GG</option><option>XGG</option>
+          <option>34</option><option>36</option><option>38</option><option>40</option><option>42</option><option>44</option><option>46</option>
+        </select>
+      </div>
+
+      <div id="products-grid" class="products-grid"></div>
+      <div id="products-empty" class="empty-state" style="display:none">
+        <div class="empty-icon">◫</div>
+        <p>Nenhum produto cadastrado ainda.</p>
+        <button class="btn-primary" onclick="navigate('cadastro',null)">Cadastrar primeiro produto</button>
+      </div>
+    </section>
+
+    <!-- PAGE: CADASTRO -->
+    <section class="page" id="page-cadastro">
+      <div class="page-header">
+        <h1 id="form-title">Cadastrar Peça</h1>
+      </div>
+
+      <div class="form-card">
+        <input type="hidden" id="edit-id" />
+
+        <!-- FOTO -->
+        <div class="photo-upload-area" id="photo-area" onclick="document.getElementById('foto-input').click()">
+          <img id="photo-preview" src="" alt="" style="display:none" />
+          <div class="photo-placeholder" id="photo-placeholder">
+            <span class="photo-icon">📷</span>
+            <span>Toque para adicionar foto</span>
+          </div>
+        </div>
+        <input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewPhoto(this)" />
+
+        <div class="form-group">
+          <label>Nome da Peça *</label>
+          <input type="text" id="f-nome" placeholder="Ex: Camiseta Básica Branca" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Código de Barras</label>
+            <div class="input-with-btn">
+              <input type="text" id="f-codigo" placeholder="Código ou SKU" />
+              <button class="input-btn" onclick="openScannerInline()" title="Escanear">⊞</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cor *</label>
+            <input type="text" id="f-cor" placeholder="Ex: Branco" />
+          </div>
+          <div class="form-group">
+            <label>Tamanho *</label>
+            <select id="f-tamanho">
+              <option value="">Selecione</option>
+              <option>PP</option><option>P</option><option>M</option><option>G</option><option>GG</option><option>XGG</option>
+              <option>34</option><option>36</option><option>38</option><option>40</option><option>42</option><option>44</option><option>46</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Quantidade *</label>
+            <input type="number" id="f-quantidade" placeholder="0" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Preço (R$) *</label>
+            <input type="number" id="f-preco" placeholder="0,00" min="0" step="0.01" />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="cancelForm()">Cancelar</button>
+          <button class="btn-primary" onclick="saveProduct()">Salvar Produto</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: SCANNER -->
+    <section class="page" id="page-scanner">
+      <div class="page-header">
+        <h1>Scanner</h1>
+        <p class="page-subtitle">Aponte para o código de barras</p>
+      </div>
+
+      <div class="scanner-container">
+        <div class="scanner-frame" id="scanner-frame">
+          <div id="reader"></div>
+          <div class="scanner-corners">
+            <span class="corner tl"></span>
+            <span class="corner tr"></span>
+            <span class="corner bl"></span>
+            <span class="corner br"></span>
+          </div>
+        </div>
+
+        <div class="scanner-result-area" id="scanner-result-area" style="display:none">
+          <div class="scanner-result-code" id="scanner-code-display"></div>
+          <div id="scanner-product-found" class="scanner-product-card" style="display:none"></div>
+          <div id="scanner-product-notfound" class="scanner-notfound" style="display:none">
+            <p>Produto não encontrado</p>
+            <button class="btn-primary" onclick="cadastrarComCodigo()">Cadastrar este código</button>
+          </div>
+        </div>
+
+        <div class="scanner-controls">
+          <button class="btn-scanner" id="btn-start-scanner" onclick="startScanner()">
+            <span>⊞</span> Iniciar Câmera
+          </button>
+          <button class="btn-scanner secondary" id="btn-stop-scanner" onclick="stopScanner()" style="display:none">
+            <span>✕</span> Parar
+          </button>
+          <button class="btn-ghost mt-sm" onclick="manualCodeSearch()">Buscar por código manual</button>
+        </div>
+
+        <!-- MANUAL INPUT -->
+        <div class="manual-search" id="manual-search" style="display:none">
+          <div class="input-with-btn">
+            <input type="text" id="manual-code-input" placeholder="Digite o código..." />
+            <button class="input-btn" onclick="searchByManualCode()">Buscar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL DE CONFIRMAÇÃO -->
+  <div class="modal-overlay" id="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="modal-icon" id="modal-icon">⚠</div>
+      <div class="modal-title" id="modal-title">Confirmar</div>
+      <div class="modal-msg" id="modal-msg"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn-danger" id="modal-confirm-btn">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- BIP AUDIO -->
+  <audio id="beep-audio" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWoGAACBhYqFbF1fdJivrJBhNjVgodDbv4RIHiVQidHu0IxIMytNh8Luv3lBHS1gq+bq0Y5IMy1djufty4FEIixio+rtyohHKyxfnejtzoZFKi5dl+fty4ZFKS9bl+ftyIZGKTBbmejuzoVFKTBbmeXtyoZEKTBamu7uzYNEKDBanuvryINFJzBanuvryIJHJi9bm+rrxoFIJjBbm+rrxYJIJi9Zmu3vy4FGJSxYmu7wy4FHJSxYm+vuyIFJJC5Ym+rsx4FKJC5Ym+rrxYFKIy5Ym+rrxYFJIy5Ym+rrxYFJ" type="audio/wav" />
+  </audio>
+
+  <script src="script.js"></script>
+</body>
+</html>
