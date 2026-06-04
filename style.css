@@ -307,7 +307,7 @@ input, select, textarea, button { font-family: var(--font-body); }
 }
 
 /* ===== SEARCH ===== */
-.search-section { margin-bottom: 20px; }
+.search-section { margin-bottom: 0; }
 
 .search-wrapper {
   position: relative;
@@ -708,7 +708,7 @@ input, select, textarea, button { font-family: var(--font-body); }
 }
 
 .empty-icon { font-size: 52px; margin-bottom: 14px; opacity: 0.3; }
-.empty-state p { font-size: 16px; margin-bottom: 20px; color: var(--text2); }
+.empty-state p { font-size: 16px; margin-bottom: 0; color: var(--text2); }
 
 /* ===== FORM ===== */
 .form-card {
@@ -722,7 +722,7 @@ input, select, textarea, button { font-family: var(--font-body); }
 
 .photo-upload-area {
   width: 100%;
-  height: 160px;
+  height: 260px;
   background: var(--bg3);
   border: 3px dashed var(--border2);
   border-radius: var(--radius-sm);
@@ -730,7 +730,7 @@ input, select, textarea, button { font-family: var(--font-body); }
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   overflow: hidden;
   transition: border-color 0.2s, background 0.2s;
 }
@@ -740,7 +740,7 @@ input, select, textarea, button { font-family: var(--font-body); }
   background: #e6f0ff;
 }
 
-.photo-upload-area img { width: 100%; height: 100%; object-fit: cover; }
+.photo-upload-area img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 
 .photo-placeholder {
   display: flex;
@@ -752,7 +752,7 @@ input, select, textarea, button { font-family: var(--font-body); }
   font-weight: 500;
 }
 
-.photo-icon { font-size: 32px; }
+.photo-icon { font-size: 48px; }
 
 .form-group { margin-bottom: 16px; }
 

@@ -330,16 +330,27 @@ function editProduct(id) {
       document.getElementById('photo-preview').src = p.foto;
       document.getElementById('photo-preview').style.display = 'block';
       document.getElementById('photo-placeholder').style.display = 'none';
+      document.getElementById('btn-remove-photo').disabled = false;
       _currentPhoto = p.foto;
     } else {
       document.getElementById('photo-preview').style.display = 'none';
       document.getElementById('photo-placeholder').style.display = 'flex';
+      document.getElementById('btn-remove-photo').disabled = true;
       _currentPhoto = null;
     }
   }, 50);
 }
 
 let _currentPhoto = null;
+
+function removePhoto() {
+  _currentPhoto = null;
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('photo-preview').src = '';
+  document.getElementById('photo-placeholder').style.display = 'flex';
+  document.getElementById('foto-input').value = '';
+  document.getElementById('btn-remove-photo').disabled = true;
+}
 
 function previewPhoto(input) {
   const file = input.files[0];
@@ -351,6 +362,7 @@ function previewPhoto(input) {
     document.getElementById('photo-preview').src = _currentPhoto;
     document.getElementById('photo-preview').style.display = 'block';
     document.getElementById('photo-placeholder').style.display = 'none';
+    document.getElementById('btn-remove-photo').disabled = false;
   };
   reader.readAsDataURL(file);
 }
