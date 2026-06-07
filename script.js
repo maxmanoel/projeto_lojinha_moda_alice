@@ -1,19 +1,66 @@
 /* ============================================================
-   VestStock — script.js
-   Sistema de Controle de Estoque para Loja de Roupas
+   VestStock — script.js — Supabase Edition
    ============================================================ */
 
-// ── STORAGE ──────────────────────────────────────────────────
-const STORAGE_KEY = 'veststock_products';
+// ── SUPABASE CONFIG ───────────────────────────────────────────
+const SUPABASE_URL = 'https://ytykbpohmxrnzjvavznv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_w7sX8XIWGoP8ZpFvmpKljA_UY11zMQ-';
+const TABLE = 'produtos';
+const API = `${SUPABASE_URL}/rest/v1/${TABLE}`;
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Prefer': 'return=representation'
+};
 
-function getProducts() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch { return []; }
+// ── CACHE LOCAL ───────────────────────────────────────────────
+let _cache = [];
+
+// ── API HELPERS ───────────────────────────────────────────────
+async function dbGetAll() {
+  const res = await fetch(`${API}?order=created_at.desc`, { headers: HEADERS });
+  if (!res.ok) throw new Error('Erro ao buscar produtos');
+  return res.json();
 }
 
-function saveProducts(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+async function dbInsert(product) {
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: HEADERS,
+    body: JSON.stringify(product)
+  });
+  if (!res.ok) throw new Error('Erro ao salvar produto');
+  return res.json();
+}
+
+async function dbUpdate(id, data) {
+  const res = await fetch(`${API}?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: HEADERS,
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar produto');
+  return res.json();
+}
+
+async function dbDelete(id) {
+  const res = await fetch(`${API}?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: HEADERS
+  });
+  if (!res.ok) throw new Error('Erro ao excluir produto');
+  return true;
+}
+
+async function getProducts() {
+  try {
+    _cache = await dbGetAll();
+    return _cache;
+  } catch(e) {
+    showToast('Erro de conexão com banco de dados', 'error');
+    return _cache;
+  }
 }
 
 // ── NAVIGATION ───────────────────────────────────────────────
@@ -25,7 +72,6 @@ const pageNames = {
 };
 
 function navigate(page, linkEl) {
-  // Parar scanner se sair da página
   if (page !== 'scanner') stopScanner();
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -61,8 +107,8 @@ function closeSidebar() {
 }
 
 // ── DASHBOARD ────────────────────────────────────────────────
-function renderDashboard() {
-  const products = getProducts();
+async function renderDashboard() {
+  const products = await getProducts();
 
   const totalPecas = products.reduce((s, p) => s + (parseInt(p.quantidade) || 0), 0);
   const totalModels = products.length;
@@ -100,7 +146,7 @@ function renderDashboard() {
 
   // RECENTES
   const recentEl = document.getElementById('recent-list');
-  const recent = [...products].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 4);
+  const recent = products.slice(0, 4);
   if (recent.length === 0) {
     recentEl.innerHTML = '<div class="empty-mini">Nenhum produto cadastrado ainda.</div>';
   } else {
@@ -109,7 +155,7 @@ function renderDashboard() {
         ${thumbHtml(p, 'mini-thumb')}
         <div class="mini-info">
           <div class="mini-name">${esc(p.nome)}</div>
-          <div class="mini-sub">${esc(p.cor)} · ${esc(p.tamanho)} · R$${parseFloat(p.preco).toFixed(2)}</div>
+          <div class="mini-sub">${esc(p.cor)} · ${esc(p.tamanho)} · R$${parseFloat(p.preco||0).toFixed(2)}</div>
         </div>
         <div class="mini-badge teal">${p.quantidade} un</div>
       </div>
@@ -129,7 +175,13 @@ function dashboardSearch(val) {
   }
 
   clearBtn.style.display = 'flex';
-  const results = searchProducts(val);
+  const t = val.toLowerCase();
+  const results = _cache.filter(p =>
+    p.nome.toLowerCase().includes(t) ||
+    (p.codigo && p.codigo.toLowerCase().includes(t)) ||
+    (p.cor && p.cor.toLowerCase().includes(t))
+  );
+
   resultEl.style.display = 'block';
 
   if (results.length === 0) {
@@ -157,20 +209,14 @@ function clearSearch() {
   document.getElementById('search-clear-btn').style.display = 'none';
 }
 
-function searchProducts(term) {
-  const t = term.toLowerCase();
-  return getProducts().filter(p =>
-    p.nome.toLowerCase().includes(t) ||
-    (p.codigo && p.codigo.toLowerCase().includes(t)) ||
-    (p.cor && p.cor.toLowerCase().includes(t))
-  );
-}
-
 // ── PRODUCTS LIST ────────────────────────────────────────────
-function renderProducts(filter = '', sizeFilter = '') {
-  const products = getProducts();
-  const term = (filter || '').toLowerCase();
-  const size = sizeFilter || document.getElementById('filter-size')?.value || '';
+async function renderProducts(filter, sizeFilter) {
+  const grid = document.getElementById('products-grid');
+  grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">Carregando...</div>';
+
+  const products = await getProducts();
+  const term = (filter !== undefined ? filter : document.getElementById('produtos-search')?.value || '').toLowerCase();
+  const size = sizeFilter !== undefined ? sizeFilter : (document.getElementById('filter-size')?.value || '');
 
   let list = products.filter(p => {
     const matchTerm = !term ||
@@ -180,7 +226,6 @@ function renderProducts(filter = '', sizeFilter = '') {
     return matchTerm && matchSize;
   });
 
-  const grid = document.getElementById('products-grid');
   const emptyEl = document.getElementById('products-empty');
 
   if (list.length === 0) {
@@ -241,47 +286,39 @@ function productCard(p) {
 }
 
 // ── SELL ─────────────────────────────────────────────────────
-function sellOne(id) {
-  const products = getProducts();
-  const idx = products.findIndex(p => p.id === id);
-  if (idx === -1) return;
+async function sellOne(id) {
+  const p = _cache.find(p => p.id === id);
+  if (!p) return;
 
-  const p = products[idx];
   const qty = parseInt(p.quantidade) || 0;
+  if (qty <= 0) { showToast('Produto sem estoque!', 'error'); return; }
 
-  if (qty <= 0) {
-    showToast('Produto sem estoque!', 'error');
-    return;
+  try {
+    await dbUpdate(id, { quantidade: qty - 1 });
+    showToast(`✓ Venda registrada — ${esc(p.nome)} (${qty - 1} restantes)`, 'success');
+    await renderProducts();
+    await renderDashboard();
+  } catch(e) {
+    showToast('Erro ao registrar venda', 'error');
   }
-
-  products[idx].quantidade = qty - 1;
-  saveProducts(products);
-  showToast(`✓ Venda registrada — ${esc(p.nome)} (${qty - 1} restantes)`, 'success');
-  renderProducts(
-    document.getElementById('produtos-search')?.value || '',
-    document.getElementById('filter-size')?.value || ''
-  );
 }
 
 // ── DELETE ───────────────────────────────────────────────────
 function confirmDelete(id) {
-  const products = getProducts();
-  const p = products.find(p => p.id === id);
+  const p = _cache.find(p => p.id === id);
   if (!p) return;
 
-  showModal(
-    '⚠',
-    'Excluir Produto',
+  showModal('⚠', 'Excluir Produto',
     `Deseja excluir <strong>${esc(p.nome)}</strong>? Esta ação não pode ser desfeita.`,
-    () => {
-      const updated = getProducts().filter(p => p.id !== id);
-      saveProducts(updated);
-      showToast('Produto excluído.', 'warning');
-      renderProducts(
-        document.getElementById('produtos-search')?.value || '',
-        document.getElementById('filter-size')?.value || ''
-      );
-      renderDashboard();
+    async () => {
+      try {
+        await dbDelete(id);
+        showToast('Produto excluído.', 'warning');
+        await renderProducts();
+        await renderDashboard();
+      } catch(e) {
+        showToast('Erro ao excluir produto', 'error');
+      }
     }
   );
 }
@@ -302,20 +339,18 @@ function clearForm() {
   document.getElementById('photo-preview').style.display = 'none';
   document.getElementById('photo-placeholder').style.display = 'flex';
   document.getElementById('foto-input').value = '';
+  const btnRemove = document.getElementById('btn-remove-photo');
+  if (btnRemove) btnRemove.disabled = true;
   _currentPhoto = null;
 }
 
-function cancelForm() {
-  navigate('produtos', null);
-}
+function cancelForm() { navigate('produtos', null); }
 
 function editProduct(id) {
-  const products = getProducts();
-  const p = products.find(p => p.id === id);
+  const p = _cache.find(p => p.id === id);
   if (!p) return;
 
   navigate('cadastro', null);
-
   setTimeout(() => {
     document.getElementById('form-title').textContent = 'Editar Peça';
     document.getElementById('edit-id').value = p.id;
@@ -330,12 +365,14 @@ function editProduct(id) {
       document.getElementById('photo-preview').src = p.foto;
       document.getElementById('photo-preview').style.display = 'block';
       document.getElementById('photo-placeholder').style.display = 'none';
-      document.getElementById('btn-remove-photo').disabled = false;
+      const btnRemove = document.getElementById('btn-remove-photo');
+      if (btnRemove) btnRemove.disabled = false;
       _currentPhoto = p.foto;
     } else {
       document.getElementById('photo-preview').style.display = 'none';
       document.getElementById('photo-placeholder').style.display = 'flex';
-      document.getElementById('btn-remove-photo').disabled = true;
+      const btnRemove = document.getElementById('btn-remove-photo');
+      if (btnRemove) btnRemove.disabled = true;
       _currentPhoto = null;
     }
   }, 50);
@@ -349,73 +386,72 @@ function removePhoto() {
   document.getElementById('photo-preview').src = '';
   document.getElementById('photo-placeholder').style.display = 'flex';
   document.getElementById('foto-input').value = '';
-  document.getElementById('btn-remove-photo').disabled = true;
+  const btnRemove = document.getElementById('btn-remove-photo');
+  if (btnRemove) btnRemove.disabled = true;
 }
 
 function previewPhoto(input) {
   const file = input.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = function(e) {
     _currentPhoto = e.target.result;
     document.getElementById('photo-preview').src = _currentPhoto;
     document.getElementById('photo-preview').style.display = 'block';
     document.getElementById('photo-placeholder').style.display = 'none';
-    document.getElementById('btn-remove-photo').disabled = false;
+    const btnRemove = document.getElementById('btn-remove-photo');
+    if (btnRemove) btnRemove.disabled = false;
   };
   reader.readAsDataURL(file);
 }
 
-function saveProduct() {
-  const nome = document.getElementById('f-nome').value.trim();
-  const codigo = document.getElementById('f-codigo').value.trim();
-  const cor = document.getElementById('f-cor').value.trim();
-  const tamanho = document.getElementById('f-tamanho').value;
-  const quantidade = document.getElementById('f-quantidade').value;
-  const preco = document.getElementById('f-preco').value;
-  const editId = document.getElementById('edit-id').value;
+async function saveProduct() {
+  const nome      = document.getElementById('f-nome').value.trim();
+  const codigo    = document.getElementById('f-codigo').value.trim();
+  const cor       = document.getElementById('f-cor').value.trim();
+  const tamanho   = document.getElementById('f-tamanho').value;
+  const quantidade= document.getElementById('f-quantidade').value;
+  const preco     = document.getElementById('f-preco').value;
+  const editId    = document.getElementById('edit-id').value;
 
-  if (!nome) { showToast('Preencha o nome da peça', 'error'); document.getElementById('f-nome').focus(); return; }
-  if (!cor) { showToast('Preencha a cor', 'error'); document.getElementById('f-cor').focus(); return; }
-  if (!tamanho) { showToast('Selecione o tamanho', 'error'); return; }
+  if (!nome)     { showToast('Preencha o nome da peça', 'error'); return; }
+  if (!cor)      { showToast('Preencha a cor', 'error'); return; }
+  if (!tamanho)  { showToast('Selecione o tamanho', 'error'); return; }
   if (quantidade === '' || isNaN(parseInt(quantidade))) { showToast('Informe a quantidade', 'error'); return; }
   if (!preco || isNaN(parseFloat(preco))) { showToast('Informe o preço', 'error'); return; }
 
-  const products = getProducts();
+  const btn = document.querySelector('.form-actions .btn-primary');
+  btn.textContent = 'Salvando...';
+  btn.disabled = true;
 
-  if (editId) {
-    // EDIT
-    const idx = products.findIndex(p => p.id === editId);
-    if (idx !== -1) {
-      products[idx] = {
-        ...products[idx],
+  try {
+    if (editId) {
+      const existing = _cache.find(p => p.id === editId);
+      await dbUpdate(editId, {
         nome, codigo, cor, tamanho,
         quantidade: parseInt(quantidade),
         preco: parseFloat(preco),
-        foto: _currentPhoto || products[idx].foto || null,
-        updatedAt: Date.now()
-      };
-      saveProducts(products);
-      showToast('✓ Produto atualizado com sucesso!', 'success');
+        foto: _currentPhoto !== null ? _currentPhoto : (existing ? existing.foto : null),
+        updated_at: new Date().toISOString()
+      });
+      showToast('✓ Produto atualizado!', 'success');
+    } else {
+      await dbInsert({
+        nome, codigo, cor, tamanho,
+        quantidade: parseInt(quantidade),
+        preco: parseFloat(preco),
+        foto: _currentPhoto || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      showToast('✓ Produto cadastrado!', 'success');
     }
-  } else {
-    // CREATE
-    const newProduct = {
-      id: generateId(),
-      nome, codigo, cor, tamanho,
-      quantidade: parseInt(quantidade),
-      preco: parseFloat(preco),
-      foto: _currentPhoto || null,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    products.push(newProduct);
-    saveProducts(products);
-    showToast('✓ Produto cadastrado com sucesso!', 'success');
+    navigate('produtos', null);
+  } catch(e) {
+    showToast('Erro ao salvar. Verifique a conexão.', 'error');
+    btn.textContent = 'Salvar Produto';
+    btn.disabled = false;
   }
-
-  navigate('produtos', null);
 }
 
 // ── SCANNER ──────────────────────────────────────────────────
@@ -427,7 +463,6 @@ function startScanner() {
   const readerEl = document.getElementById('reader');
   readerEl.innerHTML = '';
 
-  // Adicionar linha de scan animada
   const scanFrame = document.getElementById('scanner-frame');
   let scanLine = scanFrame.querySelector('.scan-line');
   if (!scanLine) {
@@ -444,9 +479,6 @@ function startScanner() {
     fps: 10,
     qrbox: { width: 260, height: 120 },
     aspectRatio: 1.5,
-    supportedScanTypes: [
-      Html5QrcodeScanType.SCAN_TYPE_CAMERA
-    ],
     rememberLastUsedCamera: true,
     formatsToSupport: [
       Html5QrcodeSupportedFormats.EAN_13,
@@ -468,7 +500,6 @@ function startScanner() {
       return;
     }
 
-    // Preferir câmera traseira
     const backCamera = cameras.find(c =>
       c.label.toLowerCase().includes('back') ||
       c.label.toLowerCase().includes('traseira') ||
@@ -476,18 +507,17 @@ function startScanner() {
     ) || cameras[cameras.length - 1];
 
     html5QrcodeScanner.start(
-      backCamera.id,
-      config,
+      backCamera.id, config,
       (decodedText) => onScanSuccess(decodedText),
       () => {}
     ).then(() => {
       scannerRunning = true;
-    }).catch(err => {
-      showToast('Erro ao acessar câmera: ' + err, 'error');
+    }).catch(() => {
+      showToast('Erro ao acessar câmera', 'error');
       stopScanner();
     });
-  }).catch(err => {
-    showToast('Sem permissão para a câmera. Verifique as configurações do navegador.', 'error');
+  }).catch(() => {
+    showToast('Sem permissão para a câmera', 'error');
     stopScanner();
   });
 }
@@ -522,7 +552,7 @@ function onScanSuccess(code) {
   document.getElementById('scanner-result-area').style.display = 'block';
   document.getElementById('scanner-code-display').textContent = code;
 
-  const product = findByCode(code);
+  const product = _cache.find(p => p.codigo && p.codigo.toLowerCase() === code.toLowerCase());
   const foundEl = document.getElementById('scanner-product-found');
   const notFoundEl = document.getElementById('scanner-product-notfound');
 
@@ -544,7 +574,6 @@ function onScanSuccess(code) {
 
 function renderScannerProductCard(p) {
   const qty = parseInt(p.quantidade) || 0;
-
   const imgHtml = p.foto
     ? `<div class="spc-img"><img src="${p.foto}" alt="${esc(p.nome)}" /></div>`
     : `<div class="spc-img">◫</div>`;
@@ -555,7 +584,7 @@ function renderScannerProductCard(p) {
       <div class="spc-name">${esc(p.nome)}</div>
       <div class="spc-meta">${esc(p.cor)} · ${esc(p.tamanho)} · R$${parseFloat(p.preco||0).toFixed(2)}</div>
       <div class="spc-actions">
-        <button class="card-btn sell" onclick="sellOne('${p.id}'); renderScannerProductRefresh('${p.id}')" ${qty===0?'disabled':''}>↘ Vender</button>
+        <button class="card-btn sell" onclick="sellOne('${p.id}'); setTimeout(()=>refreshScannerCard('${p.id}'),800)" ${qty===0?'disabled':''}>↘ Vender</button>
         <button class="card-btn edit" onclick="editProduct('${p.id}')">✎ Editar</button>
       </div>
     </div>
@@ -563,16 +592,12 @@ function renderScannerProductCard(p) {
   `;
 }
 
-function renderScannerProductRefresh(id) {
-  const products = getProducts();
-  const p = products.find(p => p.id === id);
+async function refreshScannerCard(id) {
+  await getProducts();
+  const p = _cache.find(p => p.id === id);
   if (!p) return;
   const foundEl = document.getElementById('scanner-product-found');
   foundEl.innerHTML = renderScannerProductCard(p);
-}
-
-function findByCode(code) {
-  return getProducts().find(p => p.codigo && p.codigo.toLowerCase() === code.toLowerCase()) || null;
 }
 
 function manualCodeSearch() {
@@ -587,34 +612,22 @@ function searchByManualCode() {
   onScanSuccess(code);
 }
 
-// Scanner inline no formulário
 function openScannerInline() {
   navigate('scanner', null);
-  // Flag para preencher campo de código ao escanear
-  sessionStorage.setItem('scan_target', 'form');
 }
 
-// ── CADASTRAR COM CÓDIGO ──────────────────────────────────────
 function cadastrarComCodigo() {
   const code = document.getElementById('scanner-code-display').textContent;
   navigate('cadastro', null);
-  setTimeout(() => {
-    document.getElementById('f-codigo').value = code;
-  }, 100);
+  setTimeout(() => { document.getElementById('f-codigo').value = code; }, 100);
 }
 
 // ── UTILS ─────────────────────────────────────────────────────
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
-
 function esc(str) {
   if (!str) return '';
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function formatCurrency(val) {
@@ -623,9 +636,7 @@ function formatCurrency(val) {
 }
 
 function thumbHtml(p, cls) {
-  if (p.foto) {
-    return `<div class="${cls}"><img src="${p.foto}" alt="" /></div>`;
-  }
+  if (p.foto) return `<div class="${cls}"><img src="${p.foto}" alt="" /></div>`;
   return `<div class="${cls}">◫</div>`;
 }
 
@@ -657,13 +668,9 @@ function showToast(msg, type = 'success') {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.className = 'toast ' + type;
-
   if (_toastTimer) clearTimeout(_toastTimer);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => { el.classList.add('show'); });
-  });
-
-  _toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3000);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
 // ── BIP ───────────────────────────────────────────────────────
@@ -683,29 +690,27 @@ function playBeep() {
   } catch(e) {}
 }
 
-// ── DADOS DEMO ────────────────────────────────────────────────
-function seedDemoData() {
-  if (getProducts().length > 0) return;
-
-  const demo = [
-    { id: generateId(), nome: 'Camiseta Básica', codigo: '7891234560001', cor: 'Branca', tamanho: 'M', quantidade: 12, preco: 49.90, foto: null, createdAt: Date.now()-86400000*3, updatedAt: Date.now() },
-    { id: generateId(), nome: 'Calça Jeans Slim', codigo: '7891234560002', cor: 'Azul', tamanho: '42', quantidade: 3, preco: 149.90, foto: null, createdAt: Date.now()-86400000*2, updatedAt: Date.now() },
-    { id: generateId(), nome: 'Vestido Floral', codigo: '7891234560003', cor: 'Rosa', tamanho: 'P', quantidade: 1, preco: 89.90, foto: null, createdAt: Date.now()-86400000, updatedAt: Date.now() },
-    { id: generateId(), nome: 'Blusa de Frio', codigo: '7891234560004', cor: 'Cinza', tamanho: 'G', quantidade: 7, preco: 129.90, foto: null, createdAt: Date.now()-3600000*5, updatedAt: Date.now() },
-    { id: generateId(), nome: 'Short Jeans', codigo: '7891234560005', cor: 'Preto', tamanho: '38', quantidade: 0, preco: 79.90, foto: null, createdAt: Date.now()-3600000*2, updatedAt: Date.now() },
-    { id: generateId(), nome: 'Regata Cavada', codigo: '7891234560006', cor: 'Verde', tamanho: 'PP', quantidade: 15, preco: 39.90, foto: null, createdAt: Date.now()-3600000, updatedAt: Date.now() },
-  ];
-
-  saveProducts(demo);
-}
-
 // ── INIT ──────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  seedDemoData();
-  renderDashboard();
+window.addEventListener('DOMContentLoaded', async () => {
+  await renderDashboard();
 
-  // Enter no campo de código manual
   document.getElementById('manual-code-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') searchByManualCode();
+  });
+
+  // Atualiza a cada 30 segundos automaticamente
+  setInterval(async () => {
+    const paginaAtiva = document.querySelector('.page.active')?.id;
+    if (paginaAtiva === 'page-dashboard') await renderDashboard();
+    if (paginaAtiva === 'page-produtos') await renderProducts();
+  }, 30000);
+
+  // Atualiza quando voltar para a aba
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+      const paginaAtiva = document.querySelector('.page.active')?.id;
+      if (paginaAtiva === 'page-dashboard') await renderDashboard();
+      if (paginaAtiva === 'page-produtos') await renderProducts();
+    }
   });
 });
